@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Vantage — local repo explorer</title>
+  <link rel="stylesheet" href="vantage.css" />
+</head>
+<body>
+  <div id="app">
+
+    <!-- ===== Toolbar ===== -->
+    <header class="toolbar">
+      <div class="toolbar-left">
+        <h1 class="app-title">Vantage</h1>
+      </div>
+
+      <div class="toolbar-center">
+        <input
+          id="filter-input"
+          class="filter-input"
+          type="text"
+          placeholder="Filter repos by name…"
+          autocomplete="off"
+        />
+        <select id="sort-select" class="sort-select">
+          <option value="last-activity">Sort: Last activity</option>
+          <option value="alphabetical">Sort: Alphabetical</option>
+          <option value="stack">Sort: Stack</option>
+        </select>
+      </div>
+
+      <div class="toolbar-right">
+        <button id="search-hint-btn" class="btn btn-ghost" title="Open search (Ctrl+K)">
+          Search <kbd>Ctrl</kbd>+<kbd>K</kbd>
+        </button>
+        <button id="rescan-btn" class="btn btn-secondary" hidden>Rescan</button>
+        <button id="choose-folder-btn" class="btn btn-primary">Choose folder</button>
+        <button id="reconnect-btn" class="btn btn-primary" hidden>Reconnect folder</button>
+      </div>
+    </header>
+
+    <!-- ===== Notice bar (non-blocking errors / status) ===== -->
+    <div id="notice-bar" class="notice-bar" hidden></div>
+
+    <!-- ===== Main ===== -->
+    <main class="main">
+
+      <!-- Empty state -->
+      <section id="empty-state" class="empty-state">
+        <div class="empty-state-inner">
+          <h2>No folder chosen</h2>
+          <p>Pick a projects folder to scan its immediate subfolders as repos.</p>
+          <button id="empty-choose-folder-btn" class="btn btn-primary btn-large">Choose folder</button>
+        </div>
+      </section>
+
+      <!-- Board -->
+      <section id="board" class="board" hidden></section>
+
+      <!-- Compare panel -->
+      <section id="compare-panel" class="compare-panel" hidden>
+        <div class="compare-header">
+          <h2>Compare</h2>
+          <button id="compare-clear-btn" class="btn btn-ghost">Clear selection</button>
+        </div>
+
+        <div id="compare-empty" class="compare-empty">
+          <p>Select a file for Side A and Side B from the board below to compare them.</p>
+        </div>
+
+        <div id="compare-body" class="compare-body" hidden>
+          <div class="diff-meta">
+            <div class="diff-meta-side" id="diff-meta-a"></div>
+            <div class="diff-meta-side" id="diff-meta-b"></div>
+          </div>
+
+          <div id="diff-status" class="diff-status" hidden></div>
+
+          <div id="diff-view" class="diff-view"></div>
+
+          <div id="copy-bar" class="copy-bar" hidden>
+            <button id="copy-a-to-b" class="btn btn-secondary">Copy A → B</button>
+            <button id="copy-b-to-a" class="btn btn-secondary">Copy B → A</button>
+          </div>
+        </div>
+      </section>
+
+    </main>
+
+    <!-- ===== Selection bar (persistent) ===== -->
+    <footer id="selection-bar" class="selection-bar" hidden>
+      <div class="selection-slot" id="selection-slot-a">
+        <span class="selection-label">Side A</span>
+        <span class="selection-value" id="selection-value-a">empty</span>
+      </div>
+      <div class="selection-controls">
+        <button id="selection-swap-btn" class="btn btn-ghost" title="Swap A and B">Swap</button>
+        <button id="selection-clear-btn" class="btn btn-ghost" title="Clear selection">Clear</button>
+        <span class="selection-next-indicator" id="selection-next-indicator">Next click fills: A</span>
+      </div>
+      <div class="selection-slot" id="selection-slot-b">
+        <span class="selection-label">Side B</span>
+        <span class="selection-value" id="selection-value-b">empty</span>
+      </div>
+    </footer>
+
+    <!-- ===== Ctrl+K Search Palette overlay ===== -->
+    <div id="search-overlay" class="search-overlay" hidden>
+      <div class="search-palette" role="dialog" aria-modal="true" aria-label="Search repos">
+        <input
+          id="search-input"
+          class="search-input"
+          type="text"
+          placeholder="Jump to repo…"
+          autocomplete="off"
+        />
+        <ul id="search-results" class="search-results"></ul>
+      </div>
+    </div>
+
+    <!-- ===== Confirm overwrite modal ===== -->
+    <div id="confirm-overlay" class="confirm-overlay" hidden>
+      <div class="confirm-modal" role="dialog" aria-modal="true" aria-label="Confirm overwrite">
+        <h3 id="confirm-title">Confirm overwrite</h3>
+        <p id="confirm-message"></p>
+        <div class="confirm-actions">
+          <button id="confirm-cancel-btn" class="btn btn-secondary">Cancel</button>
+          <button id="confirm-ok-btn" class="btn btn-danger">Overwrite</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== Toast ===== -->
+    <div id="toast" class="toast" hidden></div>
+
+  </div>
+
+  <script src="vantage.js"></script>
+</body>
+</html>
