@@ -27,7 +27,9 @@ Open `index.html` directly in Chrome/Edge/Opera (double-click it, or use a `file
 1. Click **Change folder** and pick your projects root. The directory handle is saved in
    IndexedDB, so reopening the page reconnects without re-picking (the browser still requires
    one permission-grant click via **Reconnect folder**).
-2. Filter the board by name and choose a sort order, then expand a card to see its file tree.
+2. Filter the board by name and choose a sort order, then click a card's **▸** chevron to expand
+   its file tree. (Clicking elsewhere on a card just highlights it as the focused one; the chevron
+   is what expands it.)
 3. Assign a file to side **A** and another (from any repo) to side **B**. A selection bar shows
    the current A/B (with **Swap** and **Clear**), and the contributing repo cards are
    highlighted. The diff sidebar slides in automatically once both sides are set. It can only be

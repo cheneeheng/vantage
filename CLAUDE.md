@@ -97,7 +97,10 @@ Two v3-specific surface rules: the diff sidebar has only **`open | minimized`** 
 the only way to remove the comparison surface is to **Clear** the selection (in the selection
 bar). Board cards carry **derived** highlight classes recomputed each render — `.is-compare-a` /
 `.is-compare-b` (a repo contributes side A/B, shown with an A/B badge) and `.is-active` (the
-expanded/drilled-into card); none of this is persisted.
+card given **visual focus**); none of this is persisted. Selection is decoupled from expansion:
+clicking anywhere on a card sets `.is-active` (a second click, or a click on empty space, clears
+it — purely cosmetic, it never touches the A/B comparison), while only the chevron expands the
+card (which also force-selects it). **Swap** reorders A/B without reopening a minimized sidebar.
 
 ## Planning docs
 
