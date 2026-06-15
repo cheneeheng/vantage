@@ -179,12 +179,18 @@ input:focus, select:focus { outline: none; border-color: var(--secondary); }
   box-shadow: var(--shadow-sm);
   overflow: hidden;
   transition: border-color var(--dur-fast) var(--ease-standard),
+              background var(--dur-fast) var(--ease-standard),
               box-shadow var(--dur-fast) var(--ease-standard);
 }
 .repo-card.expanded { border-color: var(--border-strong); }
+/* The whole card is the selectable surface, so the whole card highlights on hover. */
+.repo-card:not(.is-active):hover { background: var(--surface-2); }
 
 /* — Board highlight states (v3): derived each render from Selection + active card — */
-.repo-card.is-active { box-shadow: 0 0 0 2px var(--secondary), var(--shadow-md); }
+/* Selected/active fills + lifts the card — a neutral treatment distinct from the
+   teal A-outline (is-compare-a) and terracotta B-outline (is-compare-b), which
+   still paint their border on top of the fill. */
+.repo-card.is-active { background: var(--surface-2); border-color: var(--fg-muted); box-shadow: var(--shadow-md); }
 .repo-card.is-compare-a { border-color: var(--secondary); }
 .repo-card.is-compare-b { border-color: var(--accent); }
 .repo-card.is-compare-a.is-compare-b {
@@ -197,10 +203,8 @@ input:focus, select:focus { outline: none; border-color: var(--secondary); }
   display: flex; align-items: center; justify-content: space-between;
   gap: var(--space-3);
   padding: var(--space-4) var(--space-5);
-  cursor: pointer;
   user-select: none;
 }
-.repo-card-header:hover { background: var(--surface-2); }
 .repo-card-headline { display: flex; align-items: center; gap: var(--space-2); min-width: 0; }
 .repo-card-name {
   font-family: var(--font-display);
@@ -209,7 +213,21 @@ input:focus, select:focus { outline: none; border-color: var(--secondary); }
   letter-spacing: var(--tracking-tight);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.repo-card-toggle { color: var(--fg-subtle); font-size: var(--fs-100); transition: transform var(--dur-fast) var(--ease-standard); }
+/* The chevron is the one explicit button on the card — give it a real hit area. */
+.repo-card-toggle {
+  flex-shrink: 0;
+  color: var(--fg-subtle);
+  font-size: var(--fs-400);
+  line-height: 1;
+  cursor: pointer;
+  padding: var(--space-2);
+  margin: calc(-1 * var(--space-2));
+  border-radius: var(--radius-sm);
+  transition: transform var(--dur-fast) var(--ease-standard),
+              background var(--dur-fast) var(--ease-standard),
+              color var(--dur-fast) var(--ease-standard);
+}
+.repo-card-toggle:hover { color: var(--fg); background: var(--bg); }
 .repo-card.expanded .repo-card-toggle { transform: rotate(90deg); }
 
 /* — Compare-source badges (which side a repo contributes) — */

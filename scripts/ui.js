@@ -52,6 +52,7 @@ window.Vantage.UI = {
 
     this.el.sidebar = id('diff-sidebar');
     this.el.sidebarSides = id('sidebar-sides');
+    this.el.sidebarSwapBtn = id('sidebar-swap-btn');
     this.el.sidebarMinimizeBtn = id('sidebar-minimize-btn');
     this.el.diffStatus = id('diff-status');
     this.el.diffView = id('diff-view');
@@ -94,7 +95,8 @@ window.Vantage.UI = {
     this.el.selectionSwapBtn.addEventListener('click', () => this.swapSelection());
     this.el.selectionClearBtn.addEventListener('click', () => this.clearSelection());
 
-    // Sidebar: minimize only (no close in v3); puck re-opens.
+    // Sidebar: swap mirrors the selection bar; minimize only (no close in v3); puck re-opens.
+    this.el.sidebarSwapBtn.addEventListener('click', () => this.swapSelection());
     this.el.sidebarMinimizeBtn.addEventListener('click', () => this.minimizeSidebar());
     this.el.floatingPuck.addEventListener('click', () => this.openSidebar());
 
@@ -108,6 +110,12 @@ window.Vantage.UI = {
     this.el.rootPathClearBtn.addEventListener('click', () => this.clearRootPath());
     this.el.rootPathOverlay.addEventListener('click', (e) => {
       if (e.target === this.el.rootPathOverlay) this.closeRootPathModal();
+    });
+
+    // Clicking empty space (anywhere outside a repo card) clears the visual focus.
+    // Card clicks land on a `.repo-card`, so closest() finds one and we skip deselect.
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('.repo-card')) this.deselectCard();
     });
 
     // Confirm modal
@@ -321,6 +329,11 @@ window.Vantage.UI = {
     const isExpanded = !!repo._expanded;
     if (isExpanded) card.classList.add('expanded');
 
+    // Click anywhere on the card selects it (visual focus only). Interactive
+    // children (chevron, file rows, action buttons) stopPropagation below so
+    // they keep their own behaviour without also re-selecting.
+    card.addEventListener('click', () => this.selectCard(repo));
+
     // Derived highlight states (v3).
     const hl = this.highlightFor(repo);
     if (hl.isCompareA) card.classList.add('is-compare-a');
@@ -344,7 +357,12 @@ window.Vantage.UI = {
     toggle.textContent = '▸';
     header.appendChild(headline);
     header.appendChild(toggle);
-    header.addEventListener('click', () => this.toggleCardExpanded(repo));
+    // The chevron expands/collapses and also selects the card (force on, not toggle).
+    toggle.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.activeRepoName = repo.name;
+      this.toggleCardExpanded(repo);
+    });
     card.appendChild(header);
 
     // Meta
@@ -372,6 +390,7 @@ window.Vantage.UI = {
 
       const actions = document.createElement('div');
       actions.className = 'expanded-actions';
+      actions.addEventListener('click', (e) => e.stopPropagation());
       actions.appendChild(this.buildVscodeButton(repo));
       body.appendChild(actions);
 
@@ -414,8 +433,20 @@ window.Vantage.UI = {
 
   toggleCardExpanded(repo) {
     repo._expanded = !repo._expanded;
-    // The expanded card is the "active" (drilled-into) repo for highlight purposes.
-    this.activeRepoName = repo._expanded ? repo.name : null;
+    this.renderBoard();
+  },
+
+  // Selecting a card is visual focus only (the .is-active highlight); it is
+  // independent of expand state and never touches the A/B file comparison.
+  // Clicking the already-selected card toggles it back off.
+  selectCard(repo) {
+    this.activeRepoName = this.activeRepoName === repo.name ? null : repo.name;
+    this.renderBoard();
+  },
+
+  deselectCard() {
+    if (this.activeRepoName == null) return;
+    this.activeRepoName = null;
     this.renderBoard();
   },
 
@@ -477,7 +508,8 @@ window.Vantage.UI = {
         if (!child._open) childrenContainer.classList.add('collapsed');
         li.appendChild(childrenContainer);
 
-        row.addEventListener('click', async () => {
+        row.addEventListener('click', async (e) => {
+          e.stopPropagation();
           child._open = !child._open;
           icon.textContent = child._open ? '▾' : '▸';
           if (child._open) {
@@ -538,7 +570,7 @@ window.Vantage.UI = {
         row.appendChild(icon);
         row.appendChild(nameEl);
         row.appendChild(actions);
-        row.addEventListener('click', () => this.assignToSide(this.computeNextSide(), repo, path, child.handle));
+        row.addEventListener('click', (e) => { e.stopPropagation(); this.assignToSide(this.computeNextSide(), repo, path, child.handle); });
         li.appendChild(row);
       }
       ul.appendChild(li);
@@ -575,10 +607,16 @@ window.Vantage.UI = {
     const a = this.selection.sideA;
     this.selection.sideA = this.selection.sideB;
     this.selection.sideB = a;
-    this.lastDiff = null;
+    this.lastDiff = null; // direction flipped — invalidate the cached diff
     this.renderBoard();
     this.renderSelectionBar();
-    this.onSelectionChanged();
+    // Swap is not a new file pick: preserve the current sidebar mode (don't
+    // re-open a minimized panel). Only recompute the diff if it's already visible;
+    // a minimized panel recomputes lazily on reopen (lastDiff is null).
+    this.renderSidebar();
+    if (this.selection.sideA && this.selection.sideB && this.sidebarMode === 'open') {
+      this.runDiffAndRender();
+    }
   },
 
   clearSelection() {
