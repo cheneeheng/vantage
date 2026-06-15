@@ -43,4 +43,4 @@ repos, survey them as cards, diff any two files across repos, and copy one onto 
 - Cross-file sharing goes through a single `window.Vantage` namespace (no ES modules, so it runs
   over `file://`); load order in `index.html` is the dependency contract.
 
-[1.0.0]: https://keepachangelog.com/
+[1.0.0]: https://github.com/cheneeheng/vantage/releases/tag/v1.0.0
