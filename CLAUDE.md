@@ -12,9 +12,11 @@ Core flow: **open → find two repos → compare a file → copy across.**
 
 ## Running, building, testing
 
-- **No build step, no package manager, no dependencies, no tests.** The entire app is
-  **a single static file: `index.html`** (CSS and the classic script are inlined). The
-  v1 three-file split (`vantage.css` + `vantage.js`) was collapsed in v2.
+- **No build step, no package manager, no dependencies, no tests.** The app is a set of
+  **static files**: `index.html` (markup + ordered tags), `styles/*.css`, and `scripts/*.js`,
+  loaded as classic `<link>`/`<script>`. v1 was a three-file split, v2 collapsed it into a
+  single inlined `index.html`, and **v3 re-split it** into several small classic-script files
+  (one concern per file) wired by load order — see the constraints below.
 - **Run it** by opening `index.html` directly (`file://`) in **Chrome / Edge / Opera**.
   It will not work in Firefox or Safari — it depends on the File System Access API.
 - On first use, click **"Change folder"** and pick the projects root. The directory handle
@@ -27,17 +29,21 @@ Core flow: **open → find two repos → compare a file → copy across.**
 
 ## Hard architectural constraints (do not violate)
 
-These are deliberate decisions, not accidents — see `docs/planning/SKELETON_v2.md` and the
+These are deliberate decisions, not accidents — see `docs/planning/SKELETON_v3.md` and the
 `DECISION_LOG.md` before proposing changes that touch them:
 
-- **Single file, classic `<script>`, never `type="module"`.** Everything (brand CSS +
-  app CSS + the entire script) is inlined into `index.html`. ES-module `import` is
-  CORS-blocked over `file://`, so the page works with no server. Do not split the script
-  back into separate files or ES modules, and do not add a bundler.
+- **Multiple files, classic `<script>`/`<link>`, never `type="module"`.** The app is split
+  into `styles/{tokens,layout,components}.css` and `scripts/*.js`, loaded by classic
+  `<link>`/`<script src>` tags. ES-module `import`/`export` is CORS-blocked over `file://`,
+  so cross-file sharing goes through the single `window.Vantage` namespace object instead,
+  and **load order in `index.html` is the dependency contract** (`scripts/namespace.js`
+  first, `scripts/app.js` last; a module must be listed after anything it uses). Do not
+  introduce ES modules, a bundler, or a server, and do not re-inline everything back into
+  one file.
 - **No network calls of any kind.** No CDN, no fetch to remote hosts, no analytics. The
-  inlined brand sheet's Google-Fonts `@import` was intentionally dropped for this reason;
-  the type tokens fall back to Georgia / system-ui / monospace. Do not reintroduce remote
-  fonts or assets.
+  brand sheet's Google-Fonts `@import` was intentionally dropped for this reason; the type
+  tokens in `styles/tokens.css` fall back to Georgia / system-ui / monospace. Do not
+  reintroduce remote fonts or assets.
 - **No new dependencies.** The line-based diff is hand-written (LCS); keep it that way.
 - **Writes are confined to the chosen root folder.** Copy/overwrite is the only
   destructive action and must always name the exact target and wait for an explicit
@@ -48,48 +54,63 @@ These are deliberate decisions, not accidents — see `docs/planning/SKELETON_v2
 
 ## Code structure
 
-`index.html` is one file: inlined `<style>` (brand tokens + app component CSS), static
-markup with fixed mount-point IDs, then one inlined classic `<script>`. The script is a
-set of plain object namespaces (no classes), each a cohesive module (line numbers are
-approximate — they drift as the file changes):
+`index.html` holds the static markup with fixed mount-point IDs, then the ordered `<link>`
+and `<script>` tags. CSS is split across `styles/` (`tokens.css` brand `:root` tokens →
+`layout.css` positioning → `components.css` visual treatment). JS is split across `scripts/`,
+each file a plain object attached to `window.Vantage` (no classes), loaded in this order:
 
-- **`Persist`** (~line 682) — IndexedDB: `saveHandle`/`loadHandle` (directory handle,
-  survives sessions), `saveCache`/`loadCache` (scan results), and `saveRootPath`/
+- **`namespace.js`** (FIRST) — `window.Vantage = {}` plus shared constants (`IGNORE_LIST`,
+  `STACK_MARKERS`, `FALLBACK_WALK_MAX_DEPTH`).
+- **`persist.js` → `Vantage.Persist`** — IndexedDB: `saveHandle`/`loadHandle` (directory
+  handle, survives sessions), `saveCache`/`loadCache` (scan results), and `saveRootPath`/
   `loadRootPath` (the optional absolute path used only to build VSCode links).
-- **`Scanner`** (~line 745) — `scanRoot(dirHandle)` enumerates child dirs as repos;
-  `detectStack` reads marker files (`package.json`→Node, `Cargo.toml`→Rust, etc.);
-  `lastActivity` runs the mtime fallback chain; `readTree`/`readChildren` lazily build a
-  repo's file tree on expand. Respects `IGNORE_LIST` (`.git`, `node_modules`, `venv`, …).
-- **`Compare`** (~line 870) — `diff(textA, textB)` (line-based LCS → `DiffLine[]`) and
-  `looksBinary` (skip diffing binary files).
-- **`Copy`** (~line 915) — `copyFile(srcFileHandle, dstDirHandle, name)`, behind the
-  overwrite confirm.
-- **`Editor`** (~line 943) — `vscodeUri(rootPath, repoName)` composes
-  `vscode://file/<rootPath>/<repoName>` (normalizing slashes / Windows drive letters);
-  returns `null` when no root path is set, which keeps the "Open in VSCode" button disabled.
-- **`App`** (~line 965) — the controller and all UI: in-memory state (`repos`,
-  `selection`, `filterText`, `sidebarMode`, `lastDiff`, …), DOM refs cached in `App.el`,
-  event binding, and all rendering (`renderBoard`, `buildRepoCard`, `renderTreeNode`,
-  `buildVscodeButton`, the slide-in diff sidebar + floating puck, root-path/confirm modals,
-  toasts). Bootstrapped from `App.init()` on `DOMContentLoaded`. The board sorts by last
-  activity (no sort control); there is **no** jump-to-repo search — both removed in v2.
+- **`scanner.js` → `Vantage.Scanner`** — `chooseRoot()` opens the picker; `scanRoot(dirHandle)`
+  enumerates child dirs as repos (per-repo metadata gathered in parallel); `detectStack` reads
+  marker files (`package.json`→Node, `Cargo.toml`→Rust, etc.); `lastActivity` runs the mtime
+  fallback chain; `readTree`/`readChildren` lazily build a repo's file tree on expand. Respects
+  `Vantage.IGNORE_LIST`.
+- **`compare.js` → `Vantage.Compare`** — `diff(textA, textB)` (line-based LCS → `DiffLine[]`)
+  and `looksBinary` (skip diffing binary files).
+- **`copy.js` → `Vantage.Copy`** — `copyFile(srcFileHandle, dstDirHandle, name)` and
+  `resolveDestDir`/`destExists`, behind the overwrite confirm.
+- **`editor.js` → `Vantage.Editor`** — `vscodeUri(repoName)` composes
+  `vscode://file/<rootPath>/<repoName>` (normalizing slashes / Windows drive letters) from an
+  internal `rootPath` kept in sync via `setRootPath`; returns `null` when no root path is set,
+  which keeps the "Open in VSCode" button disabled.
+- **`ui.js` → `Vantage.UI`** — the controller and all UI: in-memory state (`repos`,
+  `selection`, `filterText`, `sortMode`, `sidebarMode`, `lastDiff`, `activeRepoName`, …), DOM
+  refs cached in `UI.el`, event binding, and all rendering (`renderBoard`, `buildRepoCard`,
+  `renderTreeNode`, `buildVscodeButton`, the selection bar, the slide-in diff sidebar + floating
+  puck, root-path/confirm modals, toasts). The board has a sort control (last-activity / A–Z /
+  stack); there is **no** jump-to-repo search.
+- **`app.js`** (LAST) — the only file that touches the DOM on boot: `Vantage.UI.init()` on
+  `DOMContentLoaded`.
 
 Data flows one way: Scanner/Persist produce plain in-memory objects (`Repo`, `TreeNode`,
-`Selection` — shapes documented in SKELETON_v2.md §02), `App` holds them as state and
-re-renders the relevant region. The markup has fixed mount-point IDs that `App.cacheDom()`
-looks up; regions and the sidebar are toggled via the `hidden` attribute and class toggles,
-not routing. The diff sidebar is presentation-only — close and minimize never clear the
-selection; only a file pick (or the explicit Clear button) changes A/B.
+`Selection`, `SidebarState` — shapes documented in SKELETON_v3.md §02), `Vantage.UI` holds them
+as state and re-renders the relevant region. The markup has fixed mount-point IDs that
+`UI.cacheDom()` looks up; regions, the sidebar, and the puck are toggled via the `hidden`
+attribute and class toggles, not routing.
+
+Two v3-specific surface rules: the diff sidebar has only **`open | minimized`** modes — there is
+**no close/dismiss control**; minimize is presentation-only and never clears the selection, and
+the only way to remove the comparison surface is to **Clear** the selection (in the selection
+bar). Board cards carry **derived** highlight classes recomputed each render — `.is-compare-a` /
+`.is-compare-b` (a repo contributes side A/B, shown with an A/B badge) and `.is-active` (the
+card given **visual focus**); none of this is persisted. Selection is decoupled from expansion:
+clicking anywhere on a card sets `.is-active` (a second click, or a click on empty space, clears
+it — purely cosmetic, it never touches the A/B comparison), while only the chevron expands the
+card (which also force-selects it). **Swap** reorders A/B without reopening a minimized sidebar.
 
 ## Planning docs
 
-`docs/planning/SKELETON_v2.md` + `ITER_01_v2.md` + `ITER_02_v2.md` are the authoritative
-**current (v2)** design — the single-file reshape. `docs/planning/SKELETON.md` and
-`ITER_0*.md` (untagged) are the superseded v1 three-file design, kept for history. Read the
-v2 skeleton before any non-trivial change.
+`docs/planning/SKELETON_v3.md` + `ITER_01_v3.md`…`ITER_04_v3.md` are the authoritative
+**current (v3)** design — the multi-file reshape. The `*_v2` files (single-file reshape) and the
+untagged `SKELETON.md` / `ITER_0*.md` (v1 three-file design) are superseded, kept for history.
+Read the v3 skeleton before any non-trivial change.
 
 ## Conventions
 
 - Agent decision log lives at `docs/claude_logs/DECISION_LOG.md`.
-- Section banners in the inlined script use `/* ===== ... ===== */`; module methods are
-  grouped under one namespace object. Match that style — no frameworks, no classes, no JSX.
+- Section banners in the scripts use `/* ===== ... ===== */`; each file is one cohesive
+  module attached to `window.Vantage`. Match that style — no frameworks, no classes, no JSX.
